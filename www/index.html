@@ -1,0 +1,44 @@
+<!DOCTYPE html><!--HTML5 doctype-->
+<html ng-app="whereismycar">
+<head>
+    <title>Where is my car</title>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=0" />
+    
+    <link rel="stylesheet" href="bower_components/ionic/css/ionic.min.css" />
+    <link rel="stylesheet" href="bower_components/leaflet-dist/leaflet.css" />
+    
+    <!--<script src="https://maps.googleapis.com/maps/api/js&sensor=true"></script>-->
+    <script type="text/javascript" src="bower_components/leaflet-dist/leaflet.js"></script>
+    <script type="text/javascript" src="bower_components/ionic/js/ionic.bundle.min.js"></script>
+    <script type="text/javascript" src="bower_components/ngstorage/ngStorage.min.js"></script>
+    <script type="text/javascript" src="app.js"></script>
+    
+    <style>
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .scroll {
+            height: 100%;
+        }
+    </style>
+</head>
+<body ng-controller="ApplicationCtrl">
+    <ion-header-bar class="bar-dark">
+      <h1 class="title">Where Is My Car??</h1>
+      <div class="buttons">
+        <button ng-click="updatePosition()" ng-if="!saved" class="button button-icon icon ion-loop"></button>
+      </div>
+    </ion-header-bar>
+    <ion-content scroll="false">
+      <div id="map"></div>
+    </ion-content>
+    <ion-footer-bar class="bar-dark">
+      <a ng-click="savePosition()" ng-if="!saved" class="button button-icon icon ion-location">Remember this location</a>
+      <a ng-click="findCar()" ng-if="saved && !inProgress" class="button button-icon icon ion-model-s">Find my car</a>
+      <h1 class="title" ng-if="inProgress">Distance to the car {{ distanceToCar | number}}Km</h1>
+    </ion-footer-bar>
+  </body>
+</html>
