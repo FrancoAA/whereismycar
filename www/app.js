@@ -4,76 +4,102 @@ var App = angular.module('whereismycar', [
     'ngStorage'
 ]);
 
-App.factory('Geolocation', ['$rootScope', '$q', '$interval', function($rootScope, $q, $interval) {
-    var watchId = null;
-    
-    var options = {
-        enableHighAccuracy: false,
-        timeout: 5000,
-        maximumAge: 0
-    };
-    
-    var toRad = function(deg) {
-      return deg * (Math.PI/180);
-    };
-    
-    function _distance(pos1, pos2) {
-        var R = 6371; // Radius of the earth in km
-        var dLat = toRad(pos1.coords.latitude - pos2.coords.latitude);  // deg2rad below
-        var dLon = toRad(pos2.coords.longitude - pos1.coords.longitude); 
-        var a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(toRad(pos1.coords.latitude)) * Math.cos(toRad(pos2.coords.latitude)) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2); 
-        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-        var d = R * c; // Distance in km
-        return d;
-    }
+App.factory('Geolocation', [
+    '$rootScope', 
+    '$q', 
+    '$interval', 
+    '$http', 
+    function($rootScope, $q, $interval, $http) {
+        var watchId = null;
+        var url = 'http://maps.googleapis.com/maps/api/geocode/json?sensor=true&latlng=';
 
-    function _getCurrentPosition() {
-        var d = $q.defer();
-        
-        navigator.geolocation.getCurrentPosition(
-            function (pos) {
-                d.resolve(pos);
-            }, 
-            function (err) {
-                d.reject(err);
-            },
-            options
-        );
-        
-        return d.promise;
-    }
-    
-    // NOTE: after some blocking issues between getCurrentPosition and watchPosition, 
-    // I decided to emulate watchPosition with a $interval and getCurrentPosition
-    function _alternativeWatchPosition() {
-        watchId = $interval(function() {
+        var options = {
+            enableHighAccuracy: false,
+            timeout: 5000,
+            maximumAge: 0
+        };
+
+        var toRad = function(deg) {
+          return deg * (Math.PI/180);
+        };
+
+        function _distance(pos1, pos2) {
+            var R = 6371; // Radius of the earth in km
+            var dLat = toRad(pos1.coords.latitude - pos2.coords.latitude);  // deg2rad below
+            var dLon = toRad(pos2.coords.longitude - pos1.coords.longitude); 
+            var a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(toRad(pos1.coords.latitude)) * Math.cos(toRad(pos2.coords.latitude)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2); 
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            var d = R * c; // Distance in km
+            return d;
+        }
+
+        function _getCurrentPosition() {
+            var d = $q.defer();
+
             navigator.geolocation.getCurrentPosition(
                 function (pos) {
-                    $rootScope.$broadcast('positionChanged', pos);
+                    d.resolve(pos);
                 }, 
                 function (err) {
-
+                    d.reject(err);
                 },
                 options
             );
-        }, 15000);
+
+            return d.promise;
+        }
+
+        // NOTE: after some blocking issues between getCurrentPosition and watchPosition, 
+        // I decided to emulate watchPosition with a $interval and getCurrentPosition
+        function _alternativeWatchPosition() {
+            watchId = $interval(function() {
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        $rootScope.$broadcast('positionChanged', pos);
+                    }, 
+                    function (err) {
+
+                    },
+                    options
+                );
+            }, 15000);
+        }
+
+        function _clearWatch() {
+            $interval.cancel(watchId);
+            watchId = undefined;
+        }
+
+        function _reverseGeocoding(pos) {
+            var d = $q.defer();
+            
+            $http.get(url + pos.coords.latitude +','+ pos.coords.longitude)
+                .success(function(response) {
+                    if (response.status === 'OK') {
+                        d.resolve(response.results[0].formatted_address);
+                    } else {
+                        d.reject();
+                    }  
+                })
+                .error(function() {
+                    d.reject();
+                });
+
+            return d.promise;
+        }
+
+        return {
+            getCurrentPosition: _getCurrentPosition,
+            watchPosition: _alternativeWatchPosition,
+            clearWatch: _clearWatch,
+            distance: _distance,
+            reverseGeocoding: _reverseGeocoding
+        };
     }
-   
-    function _clearWatch() {
-        $interval.cancel(watchId);
-        watchId = undefined;
-    }
-    
-    return {
-        getCurrentPosition: _getCurrentPosition,
-        watchPosition: _alternativeWatchPosition,
-        clearWatch: _clearWatch,
-        distance: _distance
-    };
-}]);
+]);
 
 
 App.controller('ApplicationCtrl', [
@@ -116,6 +142,12 @@ App.controller('ApplicationCtrl', [
                 map.setView(latlng, 16);
                 // display car marker on the map
                 carMarker.setLatLng(latlng).addTo(map);
+                
+                // reverse geocoding geocoordinates
+                Geolocation.reverseGeocoding(pos).then(function(address) {
+                    carMarker.bindPopup('<b>'+ address +'</b>');
+                });
+                
                 $ionicLoading.hide();
                 return;
             }
@@ -127,6 +159,15 @@ App.controller('ApplicationCtrl', [
                     map.setView(latlng, 16);
                     // display car marker on the map
                     carMarker.setLatLng(latlng).addTo(map);
+                    
+                    // reverse geocoding geocoordinates
+                    Geolocation.reverseGeocoding(pos).then(function(address) {
+                        carMarker.bindPopup('<b>'+ address +'</b>');
+                    });
+                    
+                    carMarker.on('mousedown', function() {
+                        carMarker.togglePopup();
+                    });
                     
                     $scope.carPosition = pos;
                     $ionicLoading.hide();
@@ -210,6 +251,10 @@ App.controller('ApplicationCtrl', [
                 function(pos) {
                     var latlng = [pos.coords.latitude, pos.coords.longitude];
                     carMarker.setLatLng(latlng).update().addTo(map);
+                    // reverse geocoding geocoordinates
+                    Geolocation.reverseGeocoding(pos).then(function(address) {
+                        carMarker.setPopupContent('<b>'+ address +'</b>');
+                    });
                     map.setView(latlng);
                     $scope.carPosition = pos;
                     $ionicLoading.hide();

@@ -30,7 +30,7 @@
       <h1 class="title">Where Is My Car??</h1>
       <div class="buttons">
         <button ng-click="updatePosition()" ng-if="!saved" class="button button-icon icon ion-loop"></button>
-        <a class="button button-icon icon ion-close" ng-if="inProgress" ng-click="reinitialize()"></a>
+        <a class="button button-icon icon ion-close" ng-if="inProgress || saved" ng-click="reinitialize()"></a>
       </div>
     </ion-header-bar>
     <ion-content scroll="false">
